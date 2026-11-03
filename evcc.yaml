@@ -1,0 +1,12 @@
+# EVCC's documented Stiebel WPMsystem template uses official WPM Modbus
+# register definitions. This HTML-scraping proxy does NOT emulate that map.
+# Use this only if connecting to the actual WPMsystem Modbus endpoint (if present):
+chargers:
+  - name: my_heating
+    type: template
+    template: stiebel-wpmsystem
+    modbus: tcpip
+    id: 1
+    host: YOUR_REAL_WPM_MODBUS_HOST
+    port: 502
+    # tempsource: warmwater # optional: warmwater or buffer

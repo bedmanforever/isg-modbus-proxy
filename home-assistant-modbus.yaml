@@ -1,0 +1,67 @@
+# Merge under `modbus:` in configuration.yaml. Addresses are zero-based.
+modbus:
+  - name: isg_proxy
+    type: tcp
+    host: isg-modbus-proxy
+    port: 502
+    delay: 0
+    timeout: 5
+    sensors:
+      - name: ISG Außentemperatur
+        slave: 1
+        address: 500
+        input_type: holding
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        unit_of_measurement: "°C"
+        device_class: temperature
+        state_class: measurement
+      - name: ISG Vorlauf WP
+        slave: 1
+        address: 501
+        input_type: holding
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        unit_of_measurement: "°C"
+        device_class: temperature
+      - name: ISG Rücklauf
+        slave: 1
+        address: 502
+        input_type: holding
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        unit_of_measurement: "°C"
+        device_class: temperature
+      - name: ISG Warmwasser Ist
+        slave: 1
+        address: 503
+        input_type: holding
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        unit_of_measurement: "°C"
+        device_class: temperature
+      - name: ISG Warmwasser Komfort Soll
+        slave: 1
+        address: 800
+        input_type: holding
+        data_type: int16
+        scale: 0.1
+        precision: 1
+        unit_of_measurement: "°C"
+        device_class: temperature
+    switches:
+      - name: ISG Komfort-Sollwert schreiben
+        slave: 1
+        address: 800
+        write_type: holding
+        command_on: 500
+        command_off: 480
+        verify:
+          input_type: holding
+          address: 800
+          state_on: 500
+          state_off: 480

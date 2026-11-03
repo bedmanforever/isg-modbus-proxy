@@ -1,0 +1,13 @@
+services:
+  isg-modbus-proxy:
+    build: .
+    container_name: isg-modbus-proxy
+    restart: unless-stopped
+    environment:
+      ISG_URL: ${ISG_URL:-http://isg}
+      POLL_INTERVAL: ${POLL_INTERVAL:-30}
+      MODBUS_PORT: 502
+      ISG_USERNAME: ${ISG_USERNAME:-}
+      ISG_PASSWORD: ${ISG_PASSWORD:-}
+    ports:
+      - "502:502"
