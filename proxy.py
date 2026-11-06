@@ -179,5 +179,5 @@ def main():
     threading.Thread(target=poller,daemon=True,name='isg-poller').start()
     context=ModbusServerContext(slaves=ModbusSlaveContext(hr=STORE,zero_mode=True),single=True)
     LOG.info('Serving Modbus TCP on 0.0.0.0:%d; ISG=%s poll=%ss',PORT,ISG_URL,POLL_INTERVAL)
-    StartTcpServer(context,address=('0.0.0.0',PORT))
+    StartTcpServer(context=context, address=("0.0.0.0", PORT))
 if __name__=='__main__':main()
