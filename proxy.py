@@ -22,7 +22,8 @@ REG_FIELDS = {
   504: ("hk1_actual", 10, "temp"), 505: ("hk2_actual", 10, "temp"),
   506: ("flow_nhz", 10, "temp"), 507: ("condenser", 10, "temp"),
   508: ("hk1_set", 10, "temp"), 509: ("hk2_set", 10, "temp"),
-  800: ("dhw_comfort", 10, "temp_write"), 810: ("dhw_upper_set", 10, "temp"),
+  800: ("dhw_comfort", 10, "temp_write"),
+  801: ("dhw_eco", 10, "temp_write"), 810: ("dhw_upper_set", 10, "temp"),
   1500: ("mode", 1, "mode_write"),
   1520: ("compressor_heat_hours", 1, "integer"),
   1521: ("compressor_dhw_hours", 1, "integer"),
@@ -113,7 +114,8 @@ def parse_page(markup):
 
 def encode_register(key,value):
     if value is None:return INVALID
-    raw=int(round(float(value)*10)) if key in ('outdoor','flow_wp','return','dhw_actual','hk1_actual','hk2_actual','flow_nhz','condenser','hk1_set','hk2_set','dhw_comfort') else int(round(float(value)))
+    scale=next((mult for field,mult,_ in REG_FIELDS.values() if field==key),1)
+    raw=int(round(float(value)*scale))
     return raw & 0xFFFF
 
 class Store(ModbusSequentialDataBlock):
@@ -123,14 +125,14 @@ class Store(ModbusSequentialDataBlock):
         self.base=ISG_URL
     def setValues(self,address,values):
         if not isinstance(values,list):values=[values]
-        # pymodbus ModbusSlaveContext adds one unless zero_mode enabled.
+        # pymodbus 3.6.9 ignores setValues returns; raised failures become exception 0x04.
         with self.lock:
-            super().setValues(address,values)
-            for ix,val in enumerate(values):
-                reg=address+ix
-                if reg in (800,1500):
-                    try:self.handle_write(reg,int(val)&0xffff)
-                    except Exception:LOG.exception('Write handling failed for register %s',reg)
+            if len(values)!=1:
+                raise ValueError('Write one register per request; ISG writes are not atomic')
+            self.handle_write(address,values[0])
+    def getValues(self,address,count=1):
+        with self.lock:
+            return super().getValues(address,count)
     def update(self,data):
         with self.lock:
             self.values_by_key.update(data)
@@ -138,24 +140,26 @@ class Store(ModbusSequentialDataBlock):
                 if key in data:
                     self.values[reg]=encode_register(key,data[key])
     def handle_write(self,reg,raw):
+        if reg not in (800,801,1500):raise ValueError('Register is read-only or unsupported')
+        if not isinstance(raw,int) or not 0<=raw<=0xffff:raise ValueError('Expected a 16-bit register value')
         key,scale,_=REG_FIELDS[reg]
         value=raw-65536 if raw&0x8000 else raw
         value=value/scale
-        if reg==800:
-            if not 10<=value<=60:raise ValueError('WW comfort setpoint allowed range is 10..60 °C')
-            eco=self.values_by_key.get('dhw_eco',42.0)
-            payload=[{'name':'val22','value':str(value).replace('.',',')},{'name':'val23','value':str(eco).replace('.',',')}]
+        if reg in (800,801):
+            if not 10<=value<=60:raise ValueError('DHW setpoint allowed range is 10..60 °C')
+            payload=[{'name':'val22' if reg==800 else 'val23','value':str(value).replace('.',',')}]
         else:
             if value not in MODE_NAMES:raise ValueError('mode must be 0..5')
             payload=[{'name':'val1','value':str(int(value))},{'name':'val1s','value':str(int(value))}]
-        # Verified from the ISG scripts.js: $.post('./save.php',{data:JSON.stringify(form.serializeArray())}).
+        # Inferred from scripts.js, not a captured write; verify on the target firmware.
         resp=self.session.post(urljoin(self.base+'/', 'save.php'),data={'data':json.dumps(payload,separators=(',',':'))},timeout=10)
         resp.raise_for_status()
         try:
             result=resp.json()
-            if result.get('success') is False and not result.get('warning'):raise RuntimeError('ISG rejected write: '+str(result))
         except requests.exceptions.JSONDecodeError:
-            LOG.warning('ISG save endpoint returned non-JSON response (write may not have succeeded)')
+            raise RuntimeError('ISG write response is not JSON')
+        if not isinstance(result,dict) or result.get('success') is not True:
+            raise RuntimeError('ISG did not confirm write success')
         self.values_by_key[key]=value;self.values[reg]=raw
         LOG.info('Posted ISG write for register %s (%s=%s)',reg,key,value)
 
