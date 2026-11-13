@@ -45,7 +45,9 @@ chargers:
               type: holding
               decode: uint16
 
-    # Shelly /emeter/N power values are W. Sum phases 0, 1 and 2.
+    # Shelly /emeter/N power values are W. Cache briefly because evcc
+    # may evaluate calc operands sequentially and requests within 1 second
+    # to the same URI are rejected by the HTTP plugin.
     power:
       source: calc
       add:
@@ -53,14 +55,17 @@ chargers:
           uri: http://SHELLY_HOST/emeter/0
           jq: .power
           timeout: 5s
+          cache: 2s
         - source: http
           uri: http://SHELLY_HOST/emeter/1
           jq: .power
           timeout: 5s
+          cache: 2s
         - source: http
           uri: http://SHELLY_HOST/emeter/2
           jq: .power
           timeout: 5s
+          cache: 2s
 
     # Optional DHW actual temperature in °C; remove if not needed.
     temp:
