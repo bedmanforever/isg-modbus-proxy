@@ -1,17 +1,21 @@
 # Merge under `modbus:` in configuration.yaml. Addresses are zero-based.
+# Raw 0xFFFF means missing (signed -1 before scaling); failed polls may retain stale data.
+# HA nan_value also matches +1, so these sensors omit +0.1 °C as well as -0.1 °C.
+# Switch OFF means the lower target, not heater off. Verify save.php on your firmware first.
 modbus:
   - name: isg_proxy
     type: tcp
     host: isg-modbus-proxy
     port: 502
     delay: 0
-    timeout: 5
+    timeout: 15 # Allow the proxy's 10-second ISG POST to return a Modbus exception.
     sensors:
       - name: ISG Außentemperatur
         slave: 1
         address: 500
         input_type: holding
         data_type: int16
+        nan_value: -1
         scale: 0.1
         precision: 1
         unit_of_measurement: "°C"
@@ -22,6 +26,7 @@ modbus:
         address: 501
         input_type: holding
         data_type: int16
+        nan_value: -1
         scale: 0.1
         precision: 1
         unit_of_measurement: "°C"
@@ -31,6 +36,7 @@ modbus:
         address: 502
         input_type: holding
         data_type: int16
+        nan_value: -1
         scale: 0.1
         precision: 1
         unit_of_measurement: "°C"
@@ -40,6 +46,7 @@ modbus:
         address: 503
         input_type: holding
         data_type: int16
+        nan_value: -1
         scale: 0.1
         precision: 1
         unit_of_measurement: "°C"
@@ -49,6 +56,17 @@ modbus:
         address: 800
         input_type: holding
         data_type: int16
+        nan_value: -1
+        scale: 0.1
+        precision: 1
+        unit_of_measurement: "°C"
+        device_class: temperature
+      - name: ISG Warmwasser Eco Soll
+        slave: 1
+        address: 801
+        input_type: holding
+        data_type: int16
+        nan_value: -1
         scale: 0.1
         precision: 1
         unit_of_measurement: "°C"
@@ -65,3 +83,14 @@ modbus:
           address: 800
           state_on: 500
           state_off: 480
+      - name: ISG Eco-Sollwert schreiben
+        slave: 1
+        address: 801
+        write_type: holding
+        command_on: 450
+        command_off: 420
+        verify:
+          input_type: holding
+          address: 801
+          state_on: 450
+          state_off: 420

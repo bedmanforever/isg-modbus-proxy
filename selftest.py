@@ -181,6 +181,17 @@ class StoreTests(unittest.TestCase):
             self.assertEqual(response.exception_code, 4)
             self.assertEqual(len(self.session.calls), calls)
             self.assertEqual(self.store.getValues(800, 2), [490, 435])
+            self.session.result = {'success': False}
+            response = client.mask_write_register(
+                800, and_mask=0, or_mask=500, slave=1)
+            self.assertTrue(response.isError())
+            self.assertEqual(response.exception_code, 4)
+            response = client.readwrite_registers(
+                read_address=800, read_count=1,
+                write_address=800, values=[500], slave=1)
+            self.assertTrue(response.isError())
+            self.assertEqual(response.exception_code, 4)
+            self.assertEqual(self.store.getValues(800), [490])
         finally:
             client.close()
             ServerStop()

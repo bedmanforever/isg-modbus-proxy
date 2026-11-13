@@ -1,12 +1,49 @@
-# EVCC's documented Stiebel WPMsystem template uses official WPM Modbus
-# register definitions. This HTML-scraping proxy does NOT emulate that map.
-# Use this only if connecting to the actual WPMsystem Modbus endpoint (if present):
-chargers:
-  - name: my_heating
-    type: template
-    template: stiebel-wpmsystem
-    modbus: tcpip
-    id: 1
-    host: YOUR_REAL_WPM_MODBUS_HOST
-    port: 502
-    # tempsource: warmwater # optional: warmwater or buffer
+# EVCC custom plugin RECIPE FRAGMENTS, not a standalone evcc.yaml.
+# Merge these attributes into an otherwise valid custom charger/integration.
+# Required status/enabled/maxcurrent behavior is NOT implemented by this proxy.
+# Do not fill it with invented compressor status, percent-as-watts or no-op controls.
+# This does not create a native EVCC heat-pump device or UI integration.
+# References and verification caveats: README.md.
+#
+# Replace PROXY_HOST; use the published port (default 502). Addresses are zero-based.
+# Failed polls may retain stale data. Verify save.php writes on your ISG first.
+temp:
+  source: js
+  script: |
+    if (raw === -1) {
+      throw new Error("ISG temperature unavailable (0xFFFF)");
+    }
+    raw / 10;
+  in:
+    - name: raw
+      type: float
+      config:
+        source: modbus
+        uri: PROXY_HOST:502
+        id: 1
+        timeout: 15s
+        register:
+          address: 503 # DHW actual; 500 for outdoor, 800/801 for targets
+          type: holding
+          decode: int16 # signed tenths; 0xFFFF is -1, not a valid reading
+
+# Supported custom-charger setter: choose 55 °C boost / 45 °C normal.
+# "Disable" restores a target, NOT heater off; this is not heater power control.
+# Values must remain within 10–60 °C. Write scale is 10, not 0.1.
+enable:
+  source: js
+  script: |
+    enable ? 55.0 : 45.0;
+  out:
+    - name: target
+      type: float
+      config:
+        source: modbus
+        uri: PROXY_HOST:502
+        id: 1
+        timeout: 15s # Longer than the proxy's 10-second HTTP write timeout.
+        register:
+          address: 800 # comfort val22 ONLY; 801 would change Eco val23 ONLY
+          type: writeholding
+          decode: uint16
+        scale: 10
