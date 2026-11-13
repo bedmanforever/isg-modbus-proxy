@@ -1,11 +1,12 @@
-# Merge under `modbus:` in configuration.yaml. Addresses are zero-based.
+# Merge under `modbus:` in configuration.yaml. Replace PROXY_HOST; addresses are zero-based.
 # Raw 0xFFFF means missing (signed -1 before scaling); failed polls may retain stale data.
 # HA nan_value also matches +1, so these sensors omit +0.1 °C as well as -0.1 °C.
-# Switch OFF means the lower target, not heater off. Verify save.php on your firmware first.
+# Setpoints are raw tenths (100–600 = 10–60 °C). OFF restores the lower target, not heater off.
+# Verify save.php on your firmware first.
 modbus:
   - name: isg_proxy
     type: tcp
-    host: isg-modbus-proxy
+    host: PROXY_HOST
     port: 502
     delay: 0
     timeout: 15 # Allow the proxy's 10-second ISG POST to return a Modbus exception.
