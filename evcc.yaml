@@ -1,20 +1,75 @@
-# No EVCC switchsocket configuration is supplied here: there is no truthful
-# heat-pump electric-power measurement available from this proxy.
-#
-# EVCC's custom charger subtype is `type: switchsocket`. Its documented config
-# requires `enabled`, `enable`, and `power`. Although the implementation allows
-# omitting `power` with a negative `standbypower`, that static mode reports the
-# configured wattage as power; it would invent a measurement for this heat pump.
-#
-# A truthful `enabled` getter could report whether the observed comfort target
-# at holding register 800 is at least the configured boost target. That means
-# "boost target requested", not "heat pump is heating". The optional `temp`
-# getter can report actual DHW temperature from holding register 503. `enable`
-# could write the configured boost/normal targets to register 800, each within
-# the proxy's 10–60 °C limit. EVCC still cannot use the switchsocket without a
-# real power measurement, so use the Home Assistant switches in
-# home-assistant-modbus.yaml instead.
-#
-# Replace PROXY_HOST in home-assistant-modbus.yaml with the proxy's host.
-# Its comfort switch writes 50 °C on and restores 48 °C off. Off is a return to
-# the normal target, not a command to switch the heat pump off.
+# EVCC custom switchsocket recipe for the ISG-controlled heat pump.
+# Merge these entries into an otherwise valid evcc.yaml under chargers:.
+# Replace PROXY_HOST with the reachable host/IP of the Modbus proxy.
+# Replace SHELLY_HOST with the Shelly 3EM Pro host/IP.
+# The Shelly must measure only the heat pump; /emeter/N returns power in W.
+# "Disabled" restores a lower DHW target; it does NOT turn the heat pump off.
+# enabled means the boost target is requested, not that the compressor is running.
+# Verify proxy writes/readback against your ISG before relying on automation.
+
+chargers:
+  - name: waermepumpe
+    type: switchsocket
+
+    enable:
+      source: js
+      script: |
+        enable ? 55.0 : 45.0;
+      out:
+        - name: target
+          type: float
+          config:
+            source: modbus
+            uri: PROXY_HOST:502
+            id: 1
+            timeout: 15s
+            register:
+              address: 800
+              type: writeholding
+              decode: uint16
+            scale: 10
+
+    enabled:
+      source: js
+      script: raw >= 550;
+      in:
+        - name: raw
+          type: float
+          config:
+            source: modbus
+            uri: PROXY_HOST:502
+            id: 1
+            timeout: 15s
+            register:
+              address: 800
+              type: holding
+              decode: uint16
+
+    # Shelly /emeter/N power values are W. Sum phases 0, 1 and 2.
+    power:
+      source: calc
+      add:
+        - source: http
+          uri: http://SHELLY_HOST/emeter/0
+          jq: .power
+          timeout: 5s
+        - source: http
+          uri: http://SHELLY_HOST/emeter/1
+          jq: .power
+          timeout: 5s
+        - source: http
+          uri: http://SHELLY_HOST/emeter/2
+          jq: .power
+          timeout: 5s
+
+    # Optional DHW actual temperature in °C; remove if not needed.
+    temp:
+      source: modbus
+      uri: PROXY_HOST:502
+      id: 1
+      timeout: 15s
+      register:
+        address: 503
+        type: holding
+        decode: int16
+      scale: 0.1
